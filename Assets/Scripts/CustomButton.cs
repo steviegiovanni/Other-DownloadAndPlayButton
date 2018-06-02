@@ -31,6 +31,16 @@ public class CustomButton : MonoBehaviour {
 		set{ _transitionDuration = value; }
 	}
 
+	// play resize duration
+	[SerializeField]
+	private float _playResizeDuration = 2.0f;
+
+	// getter setter for the play resize duration
+	public float PlayResizeDuration{
+		get{ return _playResizeDuration; }
+		set{ _playResizeDuration = value; }
+	}
+
 	// minimum scale of the button
 	[SerializeField]
 	private float _minScale = 1.0f;
@@ -72,6 +82,7 @@ public class CustomButton : MonoBehaviour {
 	}
 
 	// assets related
+	public GameObject btnBackgroundOrange;
 	public GameObject btnBackground;
 	public Material bgMaterialBlue;
 	public Material bgMaterialOrange;
@@ -83,6 +94,10 @@ public class CustomButton : MonoBehaviour {
 	public Texture [] fgDownloadPending;
 	public Texture [] fgDownloadProgress;
 	public Texture fgReadyToPlay;
+	public GameObject imgPlane;
+
+	// helper variable
+	private float currentTime;
 
 	// Use this for initialization
 	void Start () {
@@ -90,15 +105,20 @@ public class CustomButton : MonoBehaviour {
 		State = STATE.WAITING_TO_DOWNLOAD;
 
 		// set initial material and textures
-		btnBackground.GetComponent<Renderer>().material = bgMaterialBlue;
-		//bgMaterialBlue.mainTexture = bgBlue;
-		//Color bgColor = bgMaterialBlue.color; 
-		//bgColor.a = 1.0f;
-		//bgMaterialBlue.color = bgColor;
+		this.gameObject.SetActive(true);
+		//btnBackground.GetComponent<Renderer>().material = bgMaterialBlue;
+		btnBackgroundOrange.SetActive(false);
+		bgMaterialBlue.mainTexture = bgBlue;
+		Color bgColor = bgMaterialBlue.color; 
+		bgColor.a = 1.0f;
+		bgMaterialBlue.color = bgColor;
 		fgMaterial.mainTexture = fgWaitingToDownload;
 		Color fgColor = fgMaterial.color;
 		fgColor.a = 1.0f;
 		fgMaterial.color = fgColor;
+
+		// hide plane
+		imgPlane.SetActive(false);
 
 		// set initial size of the button
 		this.gameObject.transform.localScale = new Vector3(MinScale,MinScale,MinScale);
@@ -108,7 +128,34 @@ public class CustomButton : MonoBehaviour {
 	public void OnClicked(){
 		if (State == STATE.WAITING_TO_DOWNLOAD) {
 			State = STATE.DOWNLOAD_PENDING;
-			StartCoroutine (ButtonLogic());
+			StartCoroutine (ButtonLogic ());
+		} else if (State == STATE.READY_TO_PLAY) {
+			imgPlane.SetActive (true);
+			this.gameObject.SetActive (false);
+		}
+	}
+
+	// Update is called once per frame
+	void Update(){
+		// handles the animation during READY_TO_PLAY
+		if (State == STATE.READY_TO_PLAY) {
+			float scaleSpeed = (MaxScale - MinScale) / (PlayResizeDuration / 2);
+			float fadeSpeed = 1.0f - MinOpacity / (PlayResizeDuration); 
+
+			// fade IN the foreground material
+			if (fgMaterial.color.a < 1.0f) {
+				Color fgColor = fgMaterial.color;
+				fgColor.a = fgColor.a + fadeSpeed * Time.deltaTime;
+				fgMaterial.color = fgColor;
+			}
+
+			// resize button
+			Vector3 curScale = this.gameObject.transform.localScale;
+			float deltaScale = Time.deltaTime * scaleSpeed;
+			if(((Time.time - currentTime) % PlayResizeDuration) < PlayResizeDuration / 2)
+				this.gameObject.transform.localScale = curScale + new Vector3(deltaScale,deltaScale,deltaScale);
+			else 
+				this.gameObject.transform.localScale = curScale - new Vector3(deltaScale,deltaScale,deltaScale);
 		}
 	}
 
@@ -123,28 +170,15 @@ public class CustomButton : MonoBehaviour {
 					float scaleSpeed = (MaxScale - MinScale) / (TransitionDuration / 2);
 					float fadeSpeed = 1.0f - MinOpacity / (TransitionDuration); 
 
-					// first half of the transition
-					while ((Time.time - curTime) < TransitionDuration / 2) {
-						// enlarge the button
-						Vector3 curScale = this.gameObject.transform.localScale;
-						float deltaScale = Time.deltaTime * scaleSpeed;
-						this.gameObject.transform.localScale = curScale + new Vector3(deltaScale,deltaScale,deltaScale);
-
-						// fade out the foreground material
-						Color fgColor = fgMaterial.color;
-						fgColor.a = fgColor.a - fadeSpeed * Time.deltaTime;
-						fgMaterial.color = fgColor;
-
-						yield return null;
-					}
-						
-					// second half of the transition
 					while ((Time.time - curTime) < TransitionDuration) {
-						// make button smaller
+						// resize the button
 						Vector3 curScale = this.gameObject.transform.localScale;
 						float deltaScale = Time.deltaTime * scaleSpeed;
-						this.gameObject.transform.localScale = curScale - new Vector3(deltaScale,deltaScale,deltaScale);
-
+						if((Time.time - curTime) < (TransitionDuration / 2))
+							this.gameObject.transform.localScale = curScale + new Vector3(deltaScale,deltaScale,deltaScale);
+						else 
+							this.gameObject.transform.localScale = curScale - new Vector3(deltaScale,deltaScale,deltaScale);
+						
 						// fade out the foreground material
 						Color fgColor = fgMaterial.color;
 						fgColor.a = fgColor.a - fadeSpeed * Time.deltaTime;
@@ -195,26 +229,67 @@ public class CustomButton : MonoBehaviour {
 					fgMaterial.color = tempFgColor;
 
 					// virtually wait for 3s while playing download animation
-					curTime = Time.time;
+					/*curTime = Time.time;
 					int numDownloadTex = fgDownloadProgress.Length;
 					float downloadTexIndex = 0;
 					while ((Time.time - curTime) < 3.0f) {
 						fgMaterial.mainTexture = fgDownloadProgress [(int)((downloadTexIndex / 3.0f) * numDownloadTex) % numDownloadTex];
 						downloadTexIndex += Time.deltaTime;
 						yield return null;
+					}*/
+
+					// download image
+					int numDownloadTex = fgDownloadProgress.Length;
+					string url;
+					url = "https://sagomini.com/workspace/uploads/config/share-1475272796.jpg";
+					float progress = 0.0f;
+					Texture img;
+					using (WWW www = new WWW (url)) {
+						while (!www.isDone) {
+							progress = www.progress;
+							fgMaterial.mainTexture = fgDownloadProgress [(int)(progress * numDownloadTex) % numDownloadTex];
+							yield return null;
+						}
+						img = www.texture;
+						imgPlane.GetComponent<Renderer> ().material.mainTexture = www.texture;
+					}
+
+					// finish progress bar animation to not look so jarring
+					while (progress < 1.0f) {
+						fgMaterial.mainTexture = fgDownloadProgress [(int)(progress * numDownloadTex) % numDownloadTex];
+						progress += Time.deltaTime;
+						yield return null;
 					}
 
 					// play transition to READY_TO_PLAY
 					curTime = Time.time;
-					Renderer bgRenderer = btnBackground.GetComponent<Renderer> ();
-					float lerpParam = 0.0f;
+					btnBackgroundOrange.SetActive (true); // orange background active
+					float bgFadeSpeed = 1.0f / (TransitionDuration);
 					while ((Time.time - curTime) < TransitionDuration) {
-						Debug.Log("Time.time - curTime: "+(Time.time - curTime));
-						lerpParam += Time.deltaTime * TransitionDuration;
-						Debug.Log("Lerp param: "+lerpParam);
-						bgRenderer.material.Lerp(bgMaterialBlue,bgMaterialOrange,lerpParam);
+						// resize button
+						Vector3 curScale = this.gameObject.transform.localScale;
+						float deltaScale = Time.deltaTime * scaleSpeed;
+						if((Time.time - curTime) < (TransitionDuration / 2))
+							this.gameObject.transform.localScale = curScale + new Vector3(deltaScale,deltaScale,deltaScale);
+						else
+							this.gameObject.transform.localScale = curScale - new Vector3(deltaScale,deltaScale,deltaScale);
+
+						// slowly fade blue background
+						Color bgColor = bgMaterialBlue.color;
+						bgColor.a = bgColor.a - bgFadeSpeed * Time.deltaTime;
+						bgMaterialBlue.color = bgColor;
+
+						// fade out the foreground material
+						Color fgColor = fgMaterial.color;
+						fgColor.a = fgColor.a - fadeSpeed * Time.deltaTime;
+						fgMaterial.color = fgColor;
+
 						yield return null;
 					}
+
+					//switch foreground texture to READY_TO_PLAY
+					fgMaterial.mainTexture = fgReadyToPlay;
+					currentTime = Time.time;
 
 					// switch state to READY_TO_PLAY
 					State = STATE.READY_TO_PLAY;
