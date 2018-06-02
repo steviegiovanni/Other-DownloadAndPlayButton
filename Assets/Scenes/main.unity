@@ -498,7 +498,7 @@ MonoBehaviour:
   _minScale: 2
   _maxScale: 2.5
   _minOpacity: 0.25
-  _pendingTexSwapSlowdown: 2
+  _pendingTexSwapSlowdown: 5
   btnBackgroundOrange: {fileID: 543540316}
   btnBackground: {fileID: 416640234}
   bgMaterialBlue: {fileID: 2100000, guid: 236b4cf870f907a48aea87f34c1f5ccf, type: 2}
